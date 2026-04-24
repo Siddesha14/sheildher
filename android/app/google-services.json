@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "522094347006",
+    "firebase_url": "https://sheildher-5315e-default-rtdb.firebaseio.com",
+    "project_id": "sheildher-5315e",
+    "storage_bucket": "sheildher-5315e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:522094347006:android:054674fb87a1e17e11dbaf",
+        "android_client_info": {
+          "package_name": "com.example.shieldher"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmAUZZhLmRmOkr1fWjmQ1syJ89PbxEVnw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:522094347006:android:01b3ced3053698a911dbaf",
+        "android_client_info": {
+          "package_name": "com.example.voice_safety_module"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmAUZZhLmRmOkr1fWjmQ1syJ89PbxEVnw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
