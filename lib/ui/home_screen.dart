@@ -11,6 +11,8 @@ import '../services/passive_voice_service.dart';
 import 'contacts_screen.dart';
 import 'safe_route_screen.dart';
 import '../services/power_button_service.dart';
+import '../services/fake_call_service.dart';
+import 'fake_call_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -36,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lastDistressTranscript = 'No distress intent detected yet.';
   final List<String> _voiceHistory = [];
   late PowerButtonService _powerButtonService;
+  late FakeCallService _fakeCallService;
 
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
@@ -58,7 +61,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     _powerButtonService = PowerButtonService(onTrigger: () => _sendSOS());
     _powerButtonService.start();
+    _fakeCallService = FakeCallService(onTrigger: _showFakeCall);
+    _fakeCallService.start();
     _enablePassiveVoice();
+  }
+
+  void _showFakeCall() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const FakeCallScreen()),
+    );
   }
 
   @override
@@ -66,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _shakeService.stop();
     _passiveVoiceService.stop();
     _powerButtonService.stop();
+    _fakeCallService.stop();
     super.dispose();
   }
 
@@ -307,6 +320,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const SafeRouteScreen()));
                       },
+                    ),
+                    _buildActionCard(
+                      title: "Fake Call",
+                      icon: Icons.call_outlined,
+                      color: Colors.blue,
+                      onTap: _showFakeCall,
                     ),
                   ],
                 ),

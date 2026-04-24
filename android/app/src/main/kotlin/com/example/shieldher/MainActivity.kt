@@ -7,6 +7,9 @@ import android.content.IntentFilter
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.view.KeyEvent
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.shieldher/power_button"
@@ -33,6 +36,14 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private val VOLUME_CHANNEL = "com.example.shieldher/hardware_buttons"
+    private val volumeHandler = Handler(Looper.getMainLooper())
+    private val fakeCallRunnable = Runnable {
+        flutterEngine?.dartExecutor?.binaryMessenger?.let {
+            MethodChannel(it, VOLUME_CHANNEL).invokeMethod("triggerFakeCall", null)
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
@@ -41,6 +52,24 @@ class MainActivity : FlutterActivity() {
             addAction(Intent.ACTION_SCREEN_OFF)
         }
         registerReceiver(screenReceiver, filter)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            if (event?.repeatCount == 0) {
+                volumeHandler.postDelayed(fakeCallRunnable, 2000)
+            }
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            volumeHandler.removeCallbacks(fakeCallRunnable)
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun onDestroy() {
