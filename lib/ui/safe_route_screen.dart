@@ -118,10 +118,10 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
   Future<void> _fetchRoute() async {
     if (_currentLocation == null || _destination == null) return;
     
-    final points = await _routeService.getRoute(_currentLocation!, _destination!);
-    if (points != null) {
+    final routeData = await _routeService.getRoute(_currentLocation!, _destination!);
+    if (routeData != null) {
       setState(() {
-        _routePoints = points;
+        _routePoints = routeData.polyline;
         _polylines = {
           Polyline(
             polylineId: const PolylineId('route'),

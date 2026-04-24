@@ -8,9 +8,11 @@ class DistressIntentResult {
     required this.score,
     required this.matchedSignals,
     required this.transcript,
+    this.isGuidanceRequest = false,
   });
 
   final bool isDistressIntent;
+  final bool isGuidanceRequest;
   final double score;
   final List<String> matchedSignals;
   final String transcript;
@@ -18,8 +20,8 @@ class DistressIntentResult {
 
 class DistressIntentDetector {
   bool _isInitialized = false;
-  double _distressThreshold = 0.88;
-  double _strongCommandThreshold = 0.72;
+  double _distressThreshold = 0.95; // Increased from 0.88
+  double _strongCommandThreshold = 0.85; // Increased from 0.72
   Map<String, double> _nonDistressLogProb = {};
   Map<String, double> _distressLogProb = {};
   double _nonDistressPrior = -0.6931471806;
@@ -82,21 +84,23 @@ class DistressIntentDetector {
     final strongPatterns = <RegExp>[
       RegExp(r'\b(call|contact|dial)\s+(the\s+)?(police|cops|emergency)\b'),
       RegExp(r'\b(send|trigger|activate)\s+(an?\s+)?sos\b'),
+      RegExp(r'\b(emergency|distress)\s+signal\b'),
       RegExp(r'\bhelp\s+me\b'),
       RegExp(r'\bsave\s+me\b'),
-      RegExp(r"\b(i am|im|i'm)\s+in\s+(danger|trouble)\b"),
-      RegExp(r"\b(i am|im|i'm)\s+(scared|terrified|panicking|afraid)\b"),
-      RegExp(r'\b(please\s+)?call\s+for\s+help\b'),
-      RegExp(r'\bstop\s+the\s+car\b'),
-      RegExp(r'\blet\s+me\s+out\b'),
+      RegExp(r"\b(i am|im|i'm)\s+in\s+grave\s+(danger|trouble)\b"),
+      RegExp(r'\b(please\s+)?call\s+for\s+immediate\s+help\b'),
+      RegExp(r'\blet\s+me\s+out\s+of\s+this\s+car\b'),
       RegExp(r'\bwhere\s+are\s+you\s+taking\s+me\b'),
       RegExp(r'\bthis\s+is\s+not\s+the\s+right\s+way\b'),
       RegExp(r"\bdon't\s+touch\s+me\b"),
-      RegExp(r'\bleave\s+me\s+alone\b'),
       RegExp(r'\bget\s+away\s+from\s+me\b'),
-      RegExp(r"\b(stop|please\s+stop|don't\s+do\s+this)\b"),
-      RegExp(r'\bscream(ing)?\b'),
       RegExp(r'\b(aaah+|haaa+|nooo+)\b'),
+    ];
+
+    final guidancePatterns = <RegExp>[
+      RegExp(r'\b(where\s+is\s+the\s+)?(nearest\s+)?(police|safe\s+zone|police\s+station|police\s+booth|safe\s+area)\b'),
+      RegExp(r'\b(how\s+to\s+reach|give\s+me\s+directions|guide\s+me|show\s+me\s+the\s+way)\b'),
+      RegExp(r'\b(take\s+me\s+to\s+a\s+)?safe\s+place\b'),
     ];
 
     final negativeSafetyPatterns = <RegExp>[
@@ -114,6 +118,14 @@ class DistressIntentDetector {
       if (pattern.hasMatch(text)) {
         hasStrongIntent = true;
         matchedSignals.add('strong_pattern');
+      }
+    }
+
+    var isGuidanceRequest = false;
+    for (final pattern in guidancePatterns) {
+      if (pattern.hasMatch(text)) {
+        isGuidanceRequest = true;
+        matchedSignals.add('guidance_pattern');
       }
     }
 
@@ -155,6 +167,7 @@ class DistressIntentDetector {
       score: calibratedScore,
       matchedSignals: matchedSignals,
       transcript: transcript,
+      isGuidanceRequest: isGuidanceRequest,
     );
   }
 

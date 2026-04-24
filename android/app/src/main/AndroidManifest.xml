@@ -12,7 +12,7 @@
     <application
         android:label="shieldher"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
         <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyAdMSePuSPNMw3aD4EbQL8S0YqE4vjTCA0"/>
         <activity
             android:name=".MainActivity"
@@ -45,7 +45,7 @@
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
-
+ 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
         <intent>

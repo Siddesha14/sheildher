@@ -13,9 +13,11 @@ class PassiveVoiceService {
     required this.onThreatDetected,
     this.onTranscript,
     this.onDetectionStateChanged,
+    this.onGuidanceRequested,
   });
 
   final void Function(String triggerText) onThreatDetected;
+  final void Function(String transcript)? onGuidanceRequested;
   final void Function(String transcript, double confidence)? onTranscript;
   final void Function(String state)? onDetectionStateChanged;
   final SpeechToText _speech = SpeechToText();
@@ -133,15 +135,24 @@ class PassiveVoiceService {
       transcript: transcript,
       speechConfidence: result.confidence,
     );
-    if (!intent.isDistressIntent || _isInCooldown()) return;
 
-    _lastThreatAt = DateTime.now();
-    debugPrint(
-      'Distress intent detected. score=${intent.score.toStringAsFixed(2)} '
-      'signals=${intent.matchedSignals.join(',')}',
-    );
-    onDetectionStateChanged?.call('Distress detected');
-    onThreatDetected(transcript);
+    if (intent.isDistressIntent && !_isInCooldown()) {
+      _lastThreatAt = DateTime.now();
+      debugPrint(
+        'Distress intent detected. score=${intent.score.toStringAsFixed(2)} '
+        'signals=${intent.matchedSignals.join(',')}',
+      );
+      onDetectionStateChanged?.call('Distress detected');
+      onThreatDetected(transcript);
+      
+      // If it's ALSO a guidance request, handle it too
+      if (intent.isGuidanceRequest) {
+        onGuidanceRequested?.call(transcript);
+      }
+    } else if (intent.isGuidanceRequest && !_isInCooldown()) {
+      onGuidanceRequested?.call(transcript);
+      _lastThreatAt = DateTime.now(); // guidance also has a small cooldown
+    }
   }
 
   void _handleSoundLevel(double level) {

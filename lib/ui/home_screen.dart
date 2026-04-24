@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
-import '../services/firebase_service.dart';
 import '../services/shake_service.dart';
 import '../services/sms_service.dart';
 import '../services/contact_service.dart';
@@ -13,6 +12,11 @@ import 'safe_route_screen.dart';
 import '../services/power_button_service.dart';
 import '../services/fake_call_service.dart';
 import 'fake_call_screen.dart';
+import '../services/search_service.dart';
+import '../services/voice_guidance_service.dart';
+import '../services/route_service.dart';
+import '../services/security_service.dart';
+import 'dart:math' show cos, sqrt, asin;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,10 +27,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final LocationService _locationService = LocationService();
-  final FirebaseService _firebaseService = FirebaseService();
   final SmsService _smsService = SmsService();
+  final RouteService _routeService = RouteService();
+  final SecurityService _securityService = SecurityService();
   final ContactService _contactService = ContactService();
   final CallService _callService = CallService();
+  final SearchService _searchService = SearchService();
+  final VoiceGuidanceService _voiceGuidanceService = VoiceGuidanceService();
   late ShakeService _shakeService;
   late PassiveVoiceService _passiveVoiceService;
   bool _passiveListening = false;
@@ -42,6 +49,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
+  final Set<Polyline> _polylines = {};
+  List<RouteStep> _navigationSteps = [];
+  int _currentStepIndex = -1;
+  LatLng? _lastAnnouncedStepLocation;
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(12.9716, 77.5946),
@@ -51,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _securityService.ensureAuthenticated();
     _initLocation();
     _shakeService = ShakeService(onShake: _handleShakeEmergency);
     _shakeService.start();
@@ -58,12 +70,15 @@ class _HomeScreenState extends State<HomeScreen> {
       onThreatDetected: _handlePassiveThreatDetected,
       onTranscript: _handleTranscriptUpdate,
       onDetectionStateChanged: _handleVoiceStateChanged,
+      onGuidanceRequested: (text) => _handleEmergencyGuidance(),
     );
     _powerButtonService = PowerButtonService(onTrigger: () => _sendSOS());
     _powerButtonService.start();
     _fakeCallService = FakeCallService(onTrigger: _showFakeCall);
     _fakeCallService.start();
+
     _enablePassiveVoice();
+    _initLocationMonitoring();
   }
 
   void _showFakeCall() {
@@ -79,7 +94,37 @@ class _HomeScreenState extends State<HomeScreen> {
     _passiveVoiceService.stop();
     _powerButtonService.stop();
     _fakeCallService.stop();
+    _voiceGuidanceService.stop();
     super.dispose();
+  }
+
+  void _initLocationMonitoring() {
+    _locationService.getLocationStream().listen((position) {
+      if (_currentStepIndex >= 0 && _navigationSteps.isNotEmpty) {
+        _updateNavigation(position);
+      }
+    });
+  }
+
+  void _updateNavigation(Position position) {
+    if (_currentStepIndex >= _navigationSteps.length) return;
+
+    final currentStep = _navigationSteps[_currentStepIndex];
+    final distanceToStep = Geolocator.distanceBetween(
+      position.latitude, position.longitude,
+      currentStep.location.latitude, currentStep.location.longitude
+    );
+
+    // If within 20 meters of the step location, announce next step
+    if (distanceToStep < 20) {
+      _currentStepIndex++;
+      if (_currentStepIndex < _navigationSteps.length) {
+        _voiceGuidanceService.speak(_navigationSteps[_currentStepIndex].instruction);
+      } else {
+        _voiceGuidanceService.speak("You have arrived at the safe zone.");
+        _currentStepIndex = -1; // Reset navigation
+      }
+    }
   }
 
   Future<void> _initLocation() async {
@@ -212,21 +257,103 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
 
-      // Send to Firebase
-      final position = await _locationService.getCurrentLocation();
-      if (position != null) {
-        try {
-          await _firebaseService.sendSosAlert(
-            lat: position.latitude,
-            lng: position.longitude,
-          );
-        } catch (e) {
-          debugPrint('Failed to send SOS to Firebase: $e');
-        }
-      }
+      // Find nearby police stations and provide guidance
+      print('Triggering emergency guidance...');
+      await _handleEmergencyGuidance();
+
     } finally {
       _isSendingSos = false;
     }
+  }
+
+  Future<void> _handleEmergencyGuidance() async {
+    final position = await _locationService.getCurrentLocation();
+    if (position == null) return;
+
+    final userLatLng = LatLng(position.latitude, position.longitude);
+    final stations = await _searchService.findNearbySafeZones(userLatLng);
+
+    if (stations.isNotEmpty) {
+      // Find the closest one
+      var closest = stations[0];
+      double minDistance = Geolocator.distanceBetween(
+        userLatLng.latitude, userLatLng.longitude,
+        closest.location.latitude, closest.location.longitude
+      );
+
+      for (var station in stations) {
+        double d = Geolocator.distanceBetween(
+          userLatLng.latitude, userLatLng.longitude,
+          station.location.latitude, station.location.longitude
+        );
+        if (d < minDistance) {
+          minDistance = d;
+          closest = station;
+        }
+      }
+
+      setState(() {
+        _markers.add(
+          Marker(
+            markerId: const MarkerId("nearest_safe_zone"),
+            position: closest.location,
+            infoWindow: InfoWindow(title: closest.name, snippet: "Nearest Safe Zone"),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          ),
+        );
+      });
+
+      // Provide initial voice guidance and route info
+      String guidanceMsg = await _voiceGuidanceService.getEmergencyGuidanceMessage(closest.name, minDistance);
+      
+      // Fetch and display route
+      final routeData = await _routeService.getRoute(userLatLng, closest.location);
+      if (routeData != null) {
+        setState(() {
+          _polylines.add(Polyline(
+            polylineId: const PolylineId("emergency_route"),
+            points: routeData.polyline,
+            color: Colors.red,
+            width: 5,
+          ));
+          _navigationSteps = routeData.steps;
+          _currentStepIndex = 0;
+        });
+        
+        if (_navigationSteps.isNotEmpty) {
+          guidanceMsg += " Starting navigation. ${_navigationSteps[0].instruction}";
+        }
+      }
+
+      await _voiceGuidanceService.speak(guidanceMsg);
+
+      // Zoom map to show both
+      _fitMapToPoints(userLatLng, closest.location);
+    } else {
+      debugPrint('No safe zones found within range.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No 24h safe zones found nearby. Please stay in a well-lit area.')),
+        );
+      }
+    }
+  }
+
+  void _fitMapToPoints(LatLng p1, LatLng p2) {
+    double minLat = p1.latitude < p2.latitude ? p1.latitude : p2.latitude;
+    double maxLat = p1.latitude > p2.latitude ? p1.latitude : p2.latitude;
+    double minLng = p1.longitude < p2.longitude ? p1.longitude : p2.longitude;
+    double maxLng = p1.longitude > p2.longitude ? p1.longitude : p2.longitude;
+
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(minLat, minLng),
+          northeast: LatLng(maxLat, maxLng),
+        ),
+        100, // padding
+      ),
+    );
   }
 
 
@@ -283,6 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
               initialCameraPosition: _initialPosition,
               onMapCreated: (controller) => _mapController = controller,
               markers: _markers,
+              polylines: _polylines,
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,

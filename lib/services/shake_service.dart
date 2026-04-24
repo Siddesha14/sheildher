@@ -4,7 +4,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:flutter/foundation.dart';
 
 class ShakeService {
-  static const double shakeThresholdGravity = 2.7;
+  static const double shakeThresholdGravity = 4;
   static const int shakeSlopTimeMs = 500;
   static const int shakeCountResetTimeMs = 3000;
   static const int shakeCooldownMs = 10000;
@@ -42,8 +42,9 @@ class ShakeService {
 
         _lastShakeTime = now;
         _shakeCount++;
+        print('Shake detected! Count: $_shakeCount');
 
-        if (_shakeCount >= 3) {
+        if (_shakeCount >= 5) {
           if (now - _lastTriggerTime > shakeCooldownMs) {
             _lastTriggerTime = now;
             onShake();
