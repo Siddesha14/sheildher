@@ -12,6 +12,8 @@ class SecurityService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final StorageService _storage = StorageService();
 
+  User? get currentUser => _auth.currentUser;
+
   // SOS Cooldown configuration
   DateTime? _lastSosTrigger;
   static const Duration sosCooldown = Duration(minutes: 1);

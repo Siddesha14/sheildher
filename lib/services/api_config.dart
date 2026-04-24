@@ -2,10 +2,16 @@
 /// IMPORTANT: For production, API keys should NOT be hardcoded. 
 /// They should be fetched from a secure environment or a backend proxy.
 class ApiConfig {
-  // Use environment variables for keys where possible
-  // In a real production app, these would be injected during CI/CD
-  static const String googleMapsKey = String.fromEnvironment('GOOGLE_MAPS_KEY', defaultValue: 'AIzaSyAdMSePuSPNMw3aD4EbQL8S0YqE4vjTCA0');
-  static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: 'AIzaSyC80tPfMIW3fpgZ7qGKlt2B2GA3hhdxjVM');
+  /// SECURE KEY MANAGEMENT
+  /// We use String.fromEnvironment to read keys passed during build/run via --dart-define.
+  /// Example: flutter run --dart-define=GOOGLE_MAPS_KEY=your_key
+  
+  static const String googleMapsKey = String.fromEnvironment('GOOGLE_MAPS_KEY');
+  static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
+
+  /// Safety Check: Ensures the app doesn't attempt API calls without valid keys.
+  static bool get hasValidGoogleKey => googleMapsKey.isNotEmpty && googleMapsKey != 'null';
+  static bool get hasValidGeminiKey => geminiApiKey.isNotEmpty && geminiApiKey != 'null';
 
   // Base URLs for external services
   static const String osrmBaseUrl = "https://router.project-osrm.org/route/v1";
@@ -17,8 +23,12 @@ class ApiConfig {
   // Timeout settings for robust network handling
   static const Duration requestTimeout = Duration(seconds: 15);
 
-  /// Production Strategy Note:
-  /// Moving to a backend proxy (e.g., Firebase Functions) is highly recommended.
-  /// The app should call YOUR server, and your server calls Google/Gemini.
-  /// This prevents your API keys from being extracted from the APK.
+  static void validateConfig() {
+    if (!hasValidGoogleKey) {
+      print('WARNING: GOOGLE_MAPS_KEY is missing. Map features may fail.');
+    }
+    if (!hasValidGeminiKey) {
+      print('WARNING: GEMINI_API_KEY is missing. AI features will be disabled.');
+    }
+  }
 }

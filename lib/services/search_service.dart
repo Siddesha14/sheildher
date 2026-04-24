@@ -19,11 +19,15 @@ class LocationSearchResult {
 }
 
 class SearchService {
-  /// Robust search for locations with multi-tier fallback and timeout handling.
   Future<List<LocationSearchResult>> searchLocations(String query) async {
     if (query.isEmpty) return [];
-    
     final String bangaloreQuery = "$query, Bangalore";
+
+    // Security: Check if key exists before making Google call
+    if (!ApiConfig.hasValidGoogleKey) {
+      debugPrint('Search: Skipping Google call (No Key). Falling back to OSM.');
+      return await _findSafeZonesOSM(LatLng(12.9716, 77.5946)); // Use center of BLR for general search fallback
+    }
 
     // Attempt 1: Google Places (Legacy)
     final url = Uri.parse(

@@ -16,6 +16,7 @@ import '../services/search_service.dart';
 import '../services/voice_guidance_service.dart';
 import '../services/route_service.dart';
 import '../services/security_service.dart';
+import '../services/firebase_service.dart';
 import 'dart:math' show cos, sqrt, asin;
 
 class HomeScreen extends StatefulWidget {
@@ -30,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final SmsService _smsService = SmsService();
   final RouteService _routeService = RouteService();
   final SecurityService _securityService = SecurityService();
+  final FirebaseService _firebaseService = FirebaseService();
   final ContactService _contactService = ContactService();
   final CallService _callService = CallService();
   final SearchService _searchService = SearchService();
@@ -63,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _securityService.ensureAuthenticated();
+    _firebaseService.runClientSideCleanup(); // Privacy Fallback
     _initLocation();
     _shakeService = ShakeService(onShake: _handleShakeEmergency);
     _shakeService.start();
