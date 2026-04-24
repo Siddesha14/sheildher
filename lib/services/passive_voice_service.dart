@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:sound_mode/sound_mode.dart';
+import 'package:sound_mode/utils/ringer_mode_statuses.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'distress_intent_detector.dart';
@@ -22,19 +24,31 @@ class PassiveVoiceService {
   bool _isEnabled = false;
   bool _isListening = false;
   DateTime? _lastThreatAt;
+  DateTime? _lastListeningStartedAt;
   Timer? _restartTimer;
+  int _restartBackoffSeconds = 2;
+  RingerModeStatus? _originalRingerMode;
+  bool _ringerModeManagedByService = false;
 
   Future<bool> start() async {
     final micPermission = await Permission.microphone.request();
     if (!micPermission.isGranted) return false;
 
     await _intentDetector.initialize();
+    await _setPhoneSilentForPassiveListening();
 
     _isEnabled = await _speech.initialize(
       onStatus: _handleStatus,
       onError: (error) {
         debugPrint('Speech error: ${error.errorMsg}');
-        _scheduleRestart();
+        final errorText = error.errorMsg.toLowerCase();
+        final benignNoSpeechError =
+            errorText.contains('no_match') ||
+            errorText.contains('no match') ||
+            errorText.contains('speech timeout');
+        if (!benignNoSpeechError) {
+          _scheduleRestart();
+        }
       },
       debugLogging: false,
     );
@@ -52,17 +66,21 @@ class PassiveVoiceService {
       await _speech.stop();
     }
     _isListening = false;
+    await _restorePhoneRingerMode();
   }
 
   void _startListening() {
     if (!_isEnabled || _isListening) return;
     _isListening = true;
+    _lastListeningStartedAt = DateTime.now();
+    _restartBackoffSeconds = 2;
     onDetectionStateChanged?.call('Listening');
 
     _speech.listen(
       onResult: _handleResult,
-      listenFor: const Duration(minutes: 10),
-      pauseFor: const Duration(minutes: 2),
+      onSoundLevelChange: _handleSoundLevel,
+      listenFor: const Duration(hours: 1),
+      pauseFor: const Duration(seconds: 4),
       listenOptions: SpeechListenOptions(
         partialResults: true,
         cancelOnError: false,
@@ -78,7 +96,21 @@ class PassiveVoiceService {
     }
     if (status == 'done' || status == 'notListening') {
       _isListening = false;
-      onDetectionStateChanged?.call('Reconnecting...');
+      final startedAt = _lastListeningStartedAt;
+      final sessionSeconds = startedAt == null
+          ? 0
+          : DateTime.now().difference(startedAt).inSeconds;
+
+      // Short sessions usually create repeated mic beeps on some Android devices.
+      // Use an aggressive cooldown before reconnecting to avoid rapid toggling.
+      if (sessionSeconds < 20) {
+        _restartBackoffSeconds = 2;
+      } else if (sessionSeconds < 90) {
+        _restartBackoffSeconds = 1;
+      } else {
+        _restartBackoffSeconds = 1;
+      }
+
       _scheduleRestart();
     }
   }
@@ -86,7 +118,10 @@ class PassiveVoiceService {
   void _scheduleRestart() {
     if (!_isEnabled) return;
     _restartTimer?.cancel();
-    _restartTimer = Timer(const Duration(seconds: 2), _startListening);
+    final delay = Duration(seconds: _restartBackoffSeconds);
+    onDetectionStateChanged?.call('Reconnecting in ${delay.inSeconds}s...');
+    _restartTimer = Timer(delay, _startListening);
+    _restartBackoffSeconds = (_restartBackoffSeconds + 1).clamp(1, 5);
   }
 
   void _handleResult(SpeechRecognitionResult result) {
@@ -109,8 +144,48 @@ class PassiveVoiceService {
     onThreatDetected(transcript);
   }
 
+  void _handleSoundLevel(double level) {
+    if (!_isEnabled || _isInCooldown()) return;
+
+    // Screams typically produce very high sound levels.
+    // Threshold calibration may be needed per device, but 9.5-11.0 is often 'loud'.
+    // We use a high threshold to avoid triggering on normal speech.
+    if (level > 11.5) {
+      debugPrint('Scream/Loud noise detected: level=$level');
+      _lastThreatAt = DateTime.now();
+      onDetectionStateChanged?.call('Scream detected!');
+      onThreatDetected('Scream/Loud Noise Detected');
+    }
+  }
+
   bool _isInCooldown() {
     if (_lastThreatAt == null) return false;
     return DateTime.now().difference(_lastThreatAt!) < const Duration(seconds: 30);
+  }
+
+  Future<void> _setPhoneSilentForPassiveListening() async {
+    try {
+      if (!_ringerModeManagedByService) {
+        _originalRingerMode = await SoundMode.ringerModeStatus;
+      }
+      await SoundMode.setSoundMode(RingerModeStatus.vibrate);
+      _ringerModeManagedByService = true;
+      onDetectionStateChanged?.call('Listening (silent mode)');
+    } catch (e) {
+      debugPrint('Unable to set silent/vibrate mode: $e');
+    }
+  }
+
+  Future<void> _restorePhoneRingerMode() async {
+    try {
+      if (_ringerModeManagedByService && _originalRingerMode != null) {
+        await SoundMode.setSoundMode(_originalRingerMode!);
+      }
+    } catch (e) {
+      debugPrint('Unable to restore ringer mode: $e');
+    } finally {
+      _ringerModeManagedByService = false;
+      _originalRingerMode = null;
+    }
   }
 }

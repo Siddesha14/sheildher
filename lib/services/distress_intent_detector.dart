@@ -85,7 +85,18 @@ class DistressIntentDetector {
       RegExp(r'\bhelp\s+me\b'),
       RegExp(r'\bsave\s+me\b'),
       RegExp(r"\b(i am|im|i'm)\s+in\s+(danger|trouble)\b"),
+      RegExp(r"\b(i am|im|i'm)\s+(scared|terrified|panicking|afraid)\b"),
       RegExp(r'\b(please\s+)?call\s+for\s+help\b'),
+      RegExp(r'\bstop\s+the\s+car\b'),
+      RegExp(r'\blet\s+me\s+out\b'),
+      RegExp(r'\bwhere\s+are\s+you\s+taking\s+me\b'),
+      RegExp(r'\bthis\s+is\s+not\s+the\s+right\s+way\b'),
+      RegExp(r"\bdon't\s+touch\s+me\b"),
+      RegExp(r'\bleave\s+me\s+alone\b'),
+      RegExp(r'\bget\s+away\s+from\s+me\b'),
+      RegExp(r"\b(stop|please\s+stop|don't\s+do\s+this)\b"),
+      RegExp(r'\bscream(ing)?\b'),
+      RegExp(r'\b(aaah+|haaa+|nooo+)\b'),
     ];
 
     final negativeSafetyPatterns = <RegExp>[

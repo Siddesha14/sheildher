@@ -8,8 +8,9 @@ import '../services/sms_service.dart';
 import '../services/contact_service.dart';
 import '../services/call_service.dart';
 import '../services/passive_voice_service.dart';
-import 'fake_call_screen.dart';
 import 'contacts_screen.dart';
+import 'safe_route_screen.dart';
+import '../services/power_button_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -34,13 +35,14 @@ class _HomeScreenState extends State<HomeScreen> {
   String _latestConfidence = '-';
   String _lastDistressTranscript = 'No distress intent detected yet.';
   final List<String> _voiceHistory = [];
+  late PowerButtonService _powerButtonService;
 
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
 
   static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(0, 0),
-    zoom: 2,
+    target: LatLng(12.9716, 77.5946),
+    zoom: 12,
   );
 
   @override
@@ -54,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
       onTranscript: _handleTranscriptUpdate,
       onDetectionStateChanged: _handleVoiceStateChanged,
     );
+    _powerButtonService = PowerButtonService(onTrigger: () => _sendSOS());
+    _powerButtonService.start();
     _enablePassiveVoice();
   }
 
@@ -61,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _shakeService.stop();
     _passiveVoiceService.stop();
+    _powerButtonService.stop();
     super.dispose();
   }
 
@@ -211,9 +216,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _triggerFakeCall() {
-    FakeCallScreen.show(context);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -299,19 +301,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: _sendSOS,
                     ),
                     _buildActionCard(
-                      title: "Fake Call",
-                      icon: Icons.phone_in_talk,
-                      color: const Color(0xFF0078D4),
-                      onTap: _triggerFakeCall,
-                    ),
-                    _buildActionCard(
                       title: "Safe Route",
                       icon: Icons.route,
                       color: Colors.green,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Route Deviation Alert coming soon.')),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const SafeRouteScreen()));
                       },
                     ),
                   ],

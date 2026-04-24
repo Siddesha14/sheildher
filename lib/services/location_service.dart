@@ -24,4 +24,12 @@ class LocationService {
 
     return await Geolocator.getCurrentPosition();
   }
+
+  Stream<Position> getLocationStream() {
+    const LocationSettings locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10,
+    );
+    return Geolocator.getPositionStream(locationSettings: locationSettings);
+  }
 }
